@@ -1,0 +1,96 @@
+import time
+import urandom
+from machine import Pin
+
+# Pin assignments for LEDs (outputs) and buttons (inputs)
+LED_PINS = [2, 4, 5, 15]
+BUTTON_PINS = [23, 22, 21, 19]
+
+# Maximum length of the game sequence
+MAX_GAME_LENGTH = 100
+
+# Create lists for LED and button objects
+leds = [Pin(pin, Pin.OUT) for pin in LED_PINS]
+buttons = [Pin(pin, Pin.IN, Pin.PULL_UP) for pin in BUTTON_PINS]
+
+# Game sequence (list of LED indices) and index
+gameSequence = [0]*MAX_GAME_LENGTH
+gameIndex = 0  # How many steps are in the current sequence
+
+def lightLedAndPlayTone(ledIndex):
+    """Briefly light the specified LED to simulate a 'tone'."""
+    leds[ledIndex].on()
+    time.sleep(0.3)  # LED on for 300 ms
+    leds[ledIndex].off()
+
+def playSequence():
+    """Plays the current sequence of LEDs."""
+    print("Playing sequence of length", gameIndex)
+    for i in range(gameIndex):
+        currentLed = gameSequence[i]
+        lightLedAndPlayTone(currentLed)
+        time.sleep(0.05)  # Short gap between LEDs
+
+def readButtons():
+    """
+    Wait until any button is pressed.
+    Returns the index (0-3) of the button that was pressed.
+    """
+    while True:
+        for i in range(4):
+            # With INPUT_PULLUP, button reads 0 when pressed
+            if buttons[i].value() == 0:
+                time.sleep(0.05)  # Debounce
+                return i
+        time.sleep(0.01)
+
+def gameOver():
+    """Prints the score and resets the game index."""
+    global gameIndex
+    print("Game Over! Your score:", gameIndex - 1)
+    gameIndex = 0
+    time.sleep(1)
+
+def checkUserSequence():
+    """Checks if user presses the correct button sequence."""
+    for i in range(gameIndex):
+        expectedButton = gameSequence[i]
+        actualButton = readButtons()
+        # Provide immediate LED feedback for the pressed button
+        lightLedAndPlayTone(actualButton)
+        if expectedButton != actualButton:
+            return False
+    return True
+
+def mainLoop():
+    global gameIndex
+    while True:
+        # If gameIndex is 0, start a new game
+        if gameIndex == 0:
+            print("Starting a new game!")
+            time.sleep(0.5)
+
+        # Add a random LED to the end of the sequence
+        # urandom.getrandbits(16) -> random 16-bit number
+        # Then take modulo 4 to pick an LED index (0..3)
+        gameSequence[gameIndex] = urandom.getrandbits(16) % 4
+        gameIndex += 1
+
+        # Cap gameIndex to avoid going beyond MAX_GAME_LENGTH
+        if gameIndex >= MAX_GAME_LENGTH:
+            gameIndex = MAX_GAME_LENGTH - 1
+
+        # Play the current sequence
+        playSequence()
+
+        # Check user input
+        if not checkUserSequence():
+            gameOver()
+            # Go back to the start of the loop (new game)
+            continue
+
+        # Small pause before next round
+        time.sleep(0.3)
+
+# Run the main game loop
+mainLoop()
